@@ -1,11 +1,4 @@
 import cv2
-<<<<<<< HEAD
-import time
-cap = cv2.VideoCapture(0)
-if not cap.isOpened():
-    print("Error: Unable to access the camera.")
-    exit()
-=======
 import numpy as np
 
 #ShiTomasi corner detection
@@ -28,26 +21,11 @@ kalman = cv2.KalmanFilter(4, 2)
 kalman.measurementMatrix = np.array([[1, 0, 0, 0], [0, 1, 0, 0]], np.float32)
 kalman.transitionMatrix = np.array([[1, 0, 1, 0], [0, 1, 0, 1], [0, 0, 1, 0], [0, 0, 0, 1]], np.float32)
 kalman.processNoiseCov = np.array([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]], np.float32) * 0.03
->>>>>>> 68c9ddf (ShiTomasi corner detection)
 
-prev_time = 0 
 while True:
     ret, frame = cap.read()
     if not ret:
         break
-<<<<<<< HEAD
-
-
-    curr_time = time.time()
-    fps = int(1 / (curr_time - prev_time))
-    prev_time = curr_time
-
-
-    cv2.putText(frame, f"FPS: {fps}", (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-
-
-    cv2.imshow("Live Camera Feed", frame)
-=======
     frame_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     
     p1, st, err = cv2.calcOpticalFlowPyrLK(old_gray, frame_gray, p0, None, **lk_params)
@@ -60,7 +38,6 @@ while True:
         motion += np.array([a - c, b - d])
         
     motion /= len(good_new)
->>>>>>> 68c9ddf (ShiTomasi corner detection)
     
     kalman.correct(np.array([[motion[0]], [motion[1]]], np.float32))
     predicted = kalman.predict()
