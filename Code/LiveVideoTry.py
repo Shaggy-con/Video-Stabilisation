@@ -1,7 +1,6 @@
 import numpy as np
 import cv2
 from filterpy.kalman import KalmanFilter
-import matplotlib.pyplot as plt
 
 def movingAverage(curve, radius):
     if len(curve.shape) != 1:
@@ -27,24 +26,16 @@ def fixBorder(frame):
     frame = cv2.warpAffine(frame, T, (s[1], s[0]))
     return frame
 
-def calculate_psnr(original_frame, stabilized_frame):
-    mse = np.mean((original_frame - stabilized_frame) ** 2)
-    if mse == 0:
-        return float('inf')
-    max_pixel = 255.0
-    psnr = 20 * np.log10(max_pixel / np.sqrt(mse))
-    return psnr
-
 # Parameters
 SMOOTHING_RADIUS = 50
 
 # Initialize Kalman filter
-kf = KalmanFilter(dim_x=3, dim_z=3)
-kf.F = np.eye(3)
-kf.H = np.eye(3)
-kf.P *= 1000.
-kf.R = np.eye(3) * 0.1
-kf.Q = np.eye(3) * 0.01
+kf = KalmanFilter(dim_x=3, dim_z=3)  # 3 states (dx, dy, da), 3 measurements (dx, dy, da)
+kf.F = np.eye(3)  # State transition matrix
+kf.H = np.eye(3)  # Measurement matrix
+kf.P *= 1000.  # Initial uncertainty
+kf.R = np.eye(3) * 0.1  # Measurement noise
+kf.Q = np.eye(3) * 0.01  # Process noise
 
 # Initialize video capture
 cap = cv2.VideoCapture(0)
@@ -69,7 +60,6 @@ prev_gray = cv2.cvtColor(prev, cv2.COLOR_BGR2GRAY)
 
 # Initialize transformation array
 transforms = []
-psnr_values = []
 
 while True:
     # Read next frame
@@ -115,11 +105,13 @@ while True:
             # Store the transformation
             transforms.append([dx, dy, da])
         else:
+            # Use last valid transformation if estimation fails
             if len(transforms) > 0:
                 transforms.append(transforms[-1])
             else:
                 transforms.append([0, 0, 0])
     else:
+        # Use last valid transformation if no points are tracked
         if len(transforms) > 0:
             transforms.append(transforms[-1])
         else:
@@ -127,7 +119,14 @@ while True:
 
     # Compute trajectory
     trajectory = np.cumsum(transforms, axis=0)
+
+    # Debugging: Print shape of trajectory
+    print("Trajectory shape before smoothing:", trajectory.shape)
+
+    # Reshape trajectory if necessary
     trajectory = trajectory.reshape(-1, 3)
+
+    print("Trajectory shape after reshaping:", trajectory.shape)
 
     # Smooth trajectory
     smoothed_trajectory = smooth(trajectory)
@@ -137,7 +136,8 @@ while True:
     # Apply transformations to current frame
     if len(transforms_smooth) > 0:
         dx, dy, da = transforms_smooth[-1]
-
+        
+        # Ensure that dx, dy, and da are scalars
         dx = float(dx)
         dy = float(dy)
         da = float(da)
@@ -156,16 +156,23 @@ while True:
     else:
         frame_stabilized = curr
 
-    # Calculate PSNR between original and stabilized frame
-    psnr_value = calculate_psnr(curr, frame_stabilized)
-    psnr_values.append(psnr_value)
+    # Create mask for tracking points
+    tracking_mask = np.zeros_like(curr)
+    if prev_pts is not None:
+        for p in curr_pts:
+            x, y = p.ravel()
+            x, y = int(round(x)), int(round(y))  
+            cv2.circle(tracking_mask, (x, y), 5, color=(0, 255, 0), thickness=-1)
 
-    # Display PSNR value on the combined frame
+    # Combine original frame and tracking mask
+    frame_with_tracking_points = cv2.add(curr, tracking_mask)
+
+    # Combine original frame and stabilized frame side by side
     combined_frame = cv2.hconcat([curr, frame_stabilized])
-    cv2.putText(combined_frame, f"PSNR: {psnr_value:.2f} dB", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
 
     # Display the frames
     cv2.imshow("Original and Stabilized Video", combined_frame)
+    cv2.imshow("Tracked Points", frame_with_tracking_points)
 
     # Update previous frame and previous points
     prev_gray = curr_gray
@@ -179,11 +186,4 @@ while True:
 cap.release()
 cv2.destroyAllWindows()
 
-# Plot PSNR fluctuations
-plt.figure(figsize=(10, 6))
-plt.plot(psnr_values, label='PSNR over Time')
-plt.xlabel('Frame')
-plt.ylabel('PSNR (dB)')
-plt.title('PSNR Value Fluctuations over Time')
-plt.legend()
-plt.show()
+
