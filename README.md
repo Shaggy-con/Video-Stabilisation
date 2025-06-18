@@ -2,6 +2,4 @@
 Project About video Stabilisation
 
 DETAILED REPORT GIVEN IN THE PDF ATTACHED   
-
-
-## Basics
+DO READ THE IEEE REPORT
